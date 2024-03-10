@@ -41,3 +41,7 @@ fs.readFile(filePath, { encoding: 'utf-8' }, (err, data) => {
 //Main id = 4608
 // other 3 is 4617, 4618, 4619
 
+
+//to tun, node netlog.js /path/to/your/netlogfile.netlog
+
+
