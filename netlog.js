@@ -40,7 +40,11 @@ fs.readFile(filePath, { encoding: 'utf-8' }, (err, data) => {
        let hasParamsAndUrl = false;
 
        // Check if 'params' exists and is an object, then check for 'url' inside 'params'
-       if (dict.hasOwnProperty('params') && typeof dict.params === 'object' && dict.params.hasOwnProperty('url')) {
+       if (dict.hasOwnProperty('params') 
+       && typeof dict.params === 'object' 
+       && dict.params.hasOwnProperty('url') 
+       && dict.params.url.includes("download?nocache")
+       && dict.type == "2" ) {
             hasParamsAndUrl = true;
             results.push({index:index, dict:dict })
        }
@@ -49,8 +53,17 @@ fs.readFile(filePath, { encoding: 'utf-8' }, (err, data) => {
     //        index: index, // Keep track of which dictionary this result corresponds to
     //        hasParamsAndUrl: hasParamsAndUrl,
     });
-    console.log(results.length)
+    console.log(results)
 
+    const source_results = []
+    results.forEach((dict, index) => {
+        if (dict.dict.source.hasOwnProperty('id')){
+            source_results.push({dict:dict.dict.source})
+        }
+    }
+    )
+
+    console.log(source_results)
     // For example, you could convert JSON content or extract specific information here
     // if the Netlog file is in a structured format like JSON
     try {
