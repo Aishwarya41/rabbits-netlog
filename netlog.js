@@ -24,7 +24,32 @@ fs.readFile(filePath, { encoding: 'utf-8' }, (err, data) => {
     }
 
     // Process the data here
-    console.log("File content:", data);
+    //console.log("File content:", data);
+    parsedata = JSON.parse(data)
+    
+    // for (let item of parsedata.events) {
+    //     console.log(item);
+    // }
+   //console.log(parsedata.events[1])
+
+
+   const results = [];
+
+   parsedata.events.forEach((dict, index) => {
+       // Initialize to false for each dictionary
+       let hasParamsAndUrl = false;
+
+       // Check if 'params' exists and is an object, then check for 'url' inside 'params'
+       if (dict.hasOwnProperty('params') && typeof dict.params === 'object' && dict.params.hasOwnProperty('url')) {
+            hasParamsAndUrl = true;
+            results.push({index:index, dict:dict })
+       }
+       // Add result for this dictionary to the results array
+    //    results.push({
+    //        index: index, // Keep track of which dictionary this result corresponds to
+    //        hasParamsAndUrl: hasParamsAndUrl,
+    });
+    console.log(results.length)
 
     // For example, you could convert JSON content or extract specific information here
     // if the Netlog file is in a structured format like JSON
