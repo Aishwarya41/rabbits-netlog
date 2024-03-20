@@ -55,16 +55,15 @@ fs.readFile(filePath, { encoding: 'utf-8' }, (err, data) => {
         try {
 
             const dict = JSON.parse(line);
-            console.log(dict)
+            //console.log(dict)
             // Perform your operations here with 'dict'
             if (
                 dict.hasOwnProperty('params') &&
-                typeof dict.params === 'object' &&
+                typeof(dict.params) === 'object' &&
                 dict.params.hasOwnProperty('url') &&
                 dict.params.url.includes("download?nocache") &&
-                dict.type === "2"
+                dict.type === 2
             ) {
-                console.log("hello")
                 results.push({ index: index, dict: dict });
             }
         } catch (error) {
