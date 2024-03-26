@@ -38,38 +38,33 @@ fs.readFile(filePath, { encoding: 'utf-8' }, (err, data) => {
     // }
    //console.log(parsedata.events[1])
 //   console.log(lines[0]);
-   dictList = []
-   lines.forEach((element, index) => {
-        if (index < lines.length - 2) {
-            dictList.push(element.slice(0, -1));
-        } else {
-            dictList.push(element.slice(0, -2));
-        }
-    });
-   // console.log(dictList);
-   const results = [];
 
-//       // Iterate over each line
-    for (let index = 0; index < dictList.length - 1; index++) {
-        const line = dictList[index];
-        try {
+dictList = [];
+const results = [];
+const urls = fs.readFileSync('ookla_urls.txt')
+const parseJson = JSON.parse(urls)
+lines.forEach((element, index) => {
+     if (index < lines.length - 2) {
+         line = element.slice(0, -1);
+     } else {
+         line = element.slice(0, -2);
+     }
 
-            const dict = JSON.parse(line);
-            //console.log(dict)
-            // Perform your operations here with 'dict'
-            if (
-                dict.hasOwnProperty('params') &&
-                typeof(dict.params) === 'object' &&
-                dict.params.hasOwnProperty('url') &&
-                dict.params.url.includes("download?nocache") &&
-                dict.type === 2
-            ) {
-                results.push({ index: index, dict: dict });
-            }
-        } catch (error) {
-            console.error("Error parsing line", index, ":", error);
+     try {
+        const dict = JSON.parse(line);
+        if (
+            dict.hasOwnProperty('params') &&
+            typeof(dict.params) === 'object' &&
+            dict.params.hasOwnProperty('url') &&
+            parseJson.download.some(url => dict.params.url.includes(url)) &&
+            dict.type === 2
+        ) {
+            results.push({ index: index, dict: dict });
         }
+    } catch (error) {
+        console.error("Error parsing line", index, ":", error);
     }
+ });
 
     console.log(results);
 
