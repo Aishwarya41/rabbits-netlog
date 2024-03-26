@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { listenerCount } = require('process');
 
 // Check if a file path was provided
 if (process.argv.length < 3) {
@@ -23,57 +24,51 @@ fs.readFile(filePath, { encoding: 'utf-8' }, (err, data) => {
         return;
     }
 
-    // Process the data here
-    //console.log("File content:", data);
-
-    //going line by line
-
     // Split data by lines and skip the first two lines
-    const lines = data.split('\n').slice(2);
+    const events = data.split('\n').slice(2);
 
-    //parsedata = JSON.parse(data)
-    
-    // for (let item of parsedata.events) {
-    //     console.log(item);
-    // }
-   //console.log(parsedata.events[1])
-//   console.log(lines[0]);
+    const results = [];
+    const byte_time = [];
 
-dictList = [];
-const results = [];
-const urls = fs.readFileSync('ookla_urls.txt')
-const parseJson = JSON.parse(urls)
-lines.forEach((element, index) => {
-     if (index < lines.length - 2) {
-         line = element.slice(0, -1);
-     } else {
-         line = element.slice(0, -2);
-     }
+    //Read url from the file
+    const urls = fs.readFileSync('ookla_urls.txt')
+    const urlJSON = JSON.parse(urls)
 
-     try {
-        const dict = JSON.parse(line);
-        if (
-            dict.hasOwnProperty('params') &&
-            typeof(dict.params) === 'object' &&
-            dict.params.hasOwnProperty('url') &&
-            parseJson.download.some(url => dict.params.url.includes(url)) &&
-            dict.type === 2
-        ) {
-            results.push({ index: index, dict: dict });
+    events.forEach((element, index) => {
+        if (index < events.length - 2) {
+            eachEvent = element.slice(0, -1);
+        } else {
+            eachEvent = element.slice(0, -2);
         }
-    } catch (error) {
-        console.error("Error parsing line", index, ":", error);
-    }
- });
 
-    console.log(results);
-
-    const source_results = [];
-    results.forEach((dict, index) => {
-        if (dict.dict.source.hasOwnProperty('id')) {
-            source_results.push({ dict: dict.dict.source });
+        try {
+            const eventData = JSON.parse(eachEvent);
+            if (
+                eventData.hasOwnProperty('params') &&
+                typeof(eventData.params) === 'object' &&
+                eventData.params.hasOwnProperty('url') &&
+                urlJSON.download.some(url => eventData.params.url.includes(url)) &&
+                eventData.type === 2
+            ) {
+                if (eventData.source.hasOwnProperty('id')) {
+                    const id =  eventData.source ;
+                    results.push({ sourceID:id, index: index, dict: eventData });
+                }
+            }
+            if (
+            results.some(result=>result.sourceID && result.sourceID.id === eventData.source.id )
+            ){
+                if (
+                    eventData.type = 123 && eventData.hasOwnProperty('params') && eventData.params.hasOwnProperty('byte_count')
+                ){
+                    byte_time.push({id:eventData.source.id, bytecount: eventData.params.byte_count, time: eventData.time})
+                }
+            }
+        } catch (error) {
+            console.error("Error parsing line", index, ":", error);
         }
     });
 
-   console.log(source_results);
+    console.log(results);
+    console.log(byte_time);
  });
