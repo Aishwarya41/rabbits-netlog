@@ -35,6 +35,8 @@ fs.readFile(filePath, { encoding: 'utf-8' }, (err, data) => {
     const urlJSON = JSON.parse(urls)
 
     events.forEach((element, index) => {
+
+        //select only the json string part
         if (index < events.length - 2) {
             eachEvent = element.slice(0, -1);
         } else {
@@ -43,6 +45,8 @@ fs.readFile(filePath, { encoding: 'utf-8' }, (err, data) => {
 
         try {
             const eventData = JSON.parse(eachEvent);
+
+            // Check if the eventData meets certain conditions
             if (
                 eventData.hasOwnProperty('params') &&
                 typeof(eventData.params) === 'object' &&
