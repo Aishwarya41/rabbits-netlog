@@ -61,9 +61,10 @@ fs.readFile(filePath, { encoding: 'utf-8' }, (err, data) => {
                 eventData.hasOwnProperty('params') &&
                 typeof(eventData.params) === 'object' &&
                 eventData.params.hasOwnProperty('url') &&
-                urlJSON.download.some(url => eventData.params.url.includes(url)) &&
+                (urlJSON.download.some(url => eventData.params.url.includes(url)) ||
+                urlJSON.upload.some(url => eventData.params.url.includes(url)) &&
                 eventData.type === 2
-            ) {
+            )) {
                 if (eventData.source.hasOwnProperty('id')) {
                     const id =  eventData.source ;
                     results.push({ sourceID:id, index: index, dict: eventData });
