@@ -44,6 +44,20 @@ fs.readFile(filePath, { encoding: 'utf-8' }, (err, data) => {
     const urls = fs.readFileSync(urlPath) //turn it into an argument
     const urlJSON = JSON.parse(urls)
 
+    if (urlJSON.download.length > 0){
+        urltype = "download"
+        form = urlJSON.download
+    }else if (urlJSON.upload.length > 0){
+        urltype = "upload"
+        form = urlJSON.upload
+    }else if (urlJSON.load.length > 0){
+        urltype = "load"
+        form = urlJSON.load
+    }else if (urlJSON.unload.length > 0){
+        urltype = "unload"
+        form = urlJSON.unload
+    }
+    console.log(urltype)
     events.forEach((element, index) => {
         if (element.trim() === ""){
             return;
@@ -63,8 +77,7 @@ fs.readFile(filePath, { encoding: 'utf-8' }, (err, data) => {
                 eventData.hasOwnProperty('params') &&
                 typeof(eventData.params) === 'object' &&
                 eventData.params.hasOwnProperty('url') &&
-                (urlJSON.download.some(url => eventData.params.url.includes(url)) ||
-                urlJSON.upload.some(url => eventData.params.url.includes(url)) &&
+                form.some(url => eventData.params.url.includes(url) &&
                 eventData.type === 2
             )) {
                 if (eventData.source.hasOwnProperty('id')) {
@@ -75,10 +88,11 @@ fs.readFile(filePath, { encoding: 'utf-8' }, (err, data) => {
             if (
             results.some(result=>result.sourceID && result.sourceID.id === eventData.source.id )
             ){
-                if (
-                    (eventData.type === 123 || eventData.type === 122 ) && eventData.hasOwnProperty('params') && eventData.params.hasOwnProperty('byte_count')
-                ){
+
+                if ((eventData.type === 123 || eventData.type === 122 ) && eventData.hasOwnProperty('params') && (urltype == "download") && eventData.params.hasOwnProperty('byte_count')){
                     byte_time.push({id:eventData.source.id, bytecount: eventData.params.byte_count, time: eventData.time})
+                }else if (eventData.type === 450 && eventData.hasOwnProperty('params') && urltype == "upload" && eventData.params.hasOwnProperty('current_position')){
+                    byte_time.push({id:eventData.source.id, current_position: eventData.params.current_position, time: eventData.time})
                 }
             }
         } catch (error) {
