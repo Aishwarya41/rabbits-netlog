@@ -29,7 +29,7 @@ fs.readFile(filePath, { encoding: 'utf-8' }, (err, data) => {
     const events = data.split('\n').slice(2);
 
     const results = [];
-    const byte_time = [];
+    const byte_time_dict = {};
 
     // Get the file path from the command line arguments
     const urlPath = process.argv[3];
@@ -62,7 +62,7 @@ fs.readFile(filePath, { encoding: 'utf-8' }, (err, data) => {
         if (element.trim() === ""){
             return;
         }
-        if (element.slice(-2, -1) === ']}'){
+        if (element.slice(-2) === ']}'){
             eachEvent = element.slice(0, -2);
         }
         else{
@@ -86,14 +86,21 @@ fs.readFile(filePath, { encoding: 'utf-8' }, (err, data) => {
                 }
             }
             if (
-            results.some(result=>result.sourceID && result.sourceID.id === eventData.source.id )
+                results.some(result=>result.sourceID && result.sourceID.id === eventData.source.id )
             ){
-
-                if ((eventData.type === 123 || eventData.type === 122 ) && eventData.hasOwnProperty('params') && (urltype == "download") && eventData.params.hasOwnProperty('byte_count')){
-                    byte_time.push({id:eventData.source.id, bytecount: eventData.params.byte_count, time: eventData.time})
-                }else if (eventData.type === 450 && eventData.hasOwnProperty('params') && urltype == "upload" && eventData.params.hasOwnProperty('current_position')){
-                    byte_time.push({id:eventData.source.id, current_position: eventData.params.current_position, time: eventData.time})
+                            
+            if ((eventData.type === 123 || eventData.type === 122 ) && eventData.hasOwnProperty('params') && (urltype == "download") && eventData.params.hasOwnProperty('byte_count')){
+            // console.log(eventData.source.id)
+                if (!byte_time_dict[eventData.source.id]) {
+                    byte_time_dict[eventData.source.id] = [];
                 }
+                byte_time_dict[eventData.source.id].push({bytecount: eventData.params.byte_count, time: eventData.time})
+            }else if (eventData.type === 450 && eventData.hasOwnProperty('params') && urltype == "upload" && eventData.params.hasOwnProperty('current_position')){
+                if (!byte_time_dict[eventData.source.id]) {
+                    byte_time_dict[eventData.source.id] = [];
+                }
+                byte_time_dict[eventData.source.id].push({current_position: eventData.params.current_position, time: eventData.time})
+            }
             }
         } catch (error) {
             console.error("Error parsing line", index, ":", error);
@@ -101,12 +108,12 @@ fs.readFile(filePath, { encoding: 'utf-8' }, (err, data) => {
     });
 
     console.log(results);
-    console.log(byte_time);
+    // console.log(byte_time_dict);
+    console.log(Object.keys(byte_time_dict).length)
+    console.log(Object.keys(byte_time_dict))
+
+
  });
 
 
-//{id:'3382':[{bytecount:16384, time: '399903'},{}] //request & response time, url
-//}
 
-//t= 9460 [st=    5]             HTTP_TRANSACTION_SEND_REQUEST_HEADERS
-//t= 9470 [st=   15]  type 181   HTTP_TRANSACTION_READ_RESPONSE_HEADERS
