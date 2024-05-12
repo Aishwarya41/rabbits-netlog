@@ -1,119 +1,356 @@
 const fs = require('fs');
-const path = require('path');
-const { listenerCount } = require('process');
-const { PassThrough } = require('stream');
+const path = require('path'); // Import the path module
 
-// Check if a file path for netlog and url was provided
+// Check if a file path was provided
+const checkFilePath = (filePath) => {
+    if (!fs.existsSync(filePath)) {
+        console.log("The file does not exist.");
+        process.exit(1);
+    }
+};
+
+// Function to read a file synchronously
+const readFileSync = (filePath) => {
+    return fs.readFileSync(filePath, { encoding: 'utf-8' });
+};
+
+// Function to write a file synchronously
+const writeFileSync = (fileName, data) => {
+    const outputPath = path.join(__dirname, 'output', fileName); // Construct the output file path
+    fs.writeFileSync(outputPath, data);
+};
+
+const deleteFile = (fileName) => {
+    const filePath = path.join(__dirname, 'output', fileName); // Construct the full path to the file
+    return fs.unlink(filePath, (err) => {
+        if (err) {
+            console.error('Error deleting file:', err);
+            return;
+        }
+        console.log('File deleted successfully');
+    });
+}
+
+const getUrlTypeAndForm = (urlJSON) => {
+    let urltype, form;
+    if (urlJSON.load.length > 0) {
+        urltype = "load";
+        form = urlJSON.load;
+    } else if (urlJSON.unload.length > 0) {
+        urltype = "unload";
+        form = urlJSON.unload;
+    } else if (urlJSON.download.length > 0) {
+        urltype = "download";
+        form = urlJSON.download;
+    } else if (urlJSON.upload.length > 0) {
+        urltype = "upload";
+        form = urlJSON.upload;
+    }
+    return { urltype, form };
+};
+
+// Read the command line arguments
+const filePath = process.argv[2];
+const urlPath = process.argv[3];
+
+// Check if file paths were provided
 if (process.argv.length < 4) {
     console.log("Usage: node netlog.js <path_to_netlog_file> <path_to_urls_file>");
     process.exit(1);
 }
 
-// Get the file path from the command line arguments
-const filePath = process.argv[2];
+// Check if the files exist
+checkFilePath(filePath);
+checkFilePath(urlPath);
 
-// Check if the file exists
-if (!fs.existsSync(filePath)) {
-    console.log("The file does not exist.");
-    process.exit(1);
-}
+// Function to parse JSON from a file
+const parseJSONFromFile = (filePath) => {
+    const fileContent = fs.readFileSync(filePath);
+    return JSON.parse(fileContent);
+};
+
+const urlJSON = parseJSONFromFile(urlPath);
+const urlTypeAndForm = getUrlTypeAndForm(urlJSON);
+const { urltype, form } = urlTypeAndForm;
+
 
 // Read the content of the Netlog file
-fs.readFile(filePath, { encoding: 'utf-8' }, (err, data) => {
-    if (err) {
-        console.error("Error reading the file:", err);
-        return;
-    }
+(() => {
+    try {
+        const data = readFileSync(filePath);
+        const events = data.split('\n').slice(2);
 
-    // Split data by lines and skip the first two lines
-    const events = data.split('\n').slice(2);
+        // Read the URLs from the file
 
-    const results = [];
-    const byte_time_dict = {};
+        console.log(urltype);
 
-    // Get the file path from the command line arguments
-    const urlPath = process.argv[3];
+        const byte_time_list = [];
+        const current_position_list = [];
+        const latency_results = [];
+        const results = [];
 
-    // Check if the file exists
-    if (!fs.existsSync(urlPath)) {
-        console.log("The file does not exist.");
-        process.exit(1);
-    }
-
-    //Read url from the file
-    const urls = fs.readFileSync(urlPath) //turn it into an argument
-    const urlJSON = JSON.parse(urls)
-
-    if (urlJSON.download.length > 0){
-        urltype = "download"
-        form = urlJSON.download
-    }else if (urlJSON.upload.length > 0){
-        urltype = "upload"
-        form = urlJSON.upload
-    }else if (urlJSON.load.length > 0){
-        urltype = "load"
-        form = urlJSON.load
-    }else if (urlJSON.unload.length > 0){
-        urltype = "unload"
-        form = urlJSON.unload
-    }
-    console.log(urltype)
-    events.forEach((element, index) => {
-        if (element.trim() === ""){
-            return;
+        if (urltype === "load" || urltype === "unload") {
+            var split_urls = [];
+            for (var i = 0; i < form.length; i++) {
+                // console.log(typeof urls[i], urls[i]);
+                var parts = form[i].split("/");
+                var split_url = parts.slice(3).join("/");
+                split_urls.push(split_url);
+            }
         }
-        if (element.slice(-2) === ']}'){
-            eachEvent = element.slice(0, -2);
+
+        events.forEach((element, index) => {
+            if (element.trim() === "") {
+                return;
+            }
+            if (element.slice(-2) === ']}') {
+                eachEvent = element.slice(0, -2);
+            } else {
+                eachEvent = element.slice(0, -1);
+            }
+
+            try {
+                const eventData = JSON.parse(eachEvent);
+
+                // Check if the eventData meets certain conditions
+                if (
+                    eventData.hasOwnProperty('params') &&
+                    typeof (eventData.params) === 'object' &&
+                    eventData.params.hasOwnProperty('url') &&
+                    form.some(url => eventData.params.url.includes(url) &&
+                        eventData.type === 2
+                    )
+                ) {
+                    if (eventData.source.hasOwnProperty('id')) {
+                        const id = eventData.source;
+                        results.push({ sourceID: id, index: index, dict: eventData });
+                    }
+                }
+                if (
+                    results.some(result => result.sourceID && result.sourceID.id === eventData.source.id)
+                ) {
+                    if ((eventData.type === 123 || eventData.type === 122) && eventData.hasOwnProperty('params') && (urltype == "download") && eventData.params.hasOwnProperty('byte_count')) {
+                        let existingIdIndex = byte_time_list.findIndex(item => item.id === eventData.source.id);
+                        if (existingIdIndex === -1) {
+                            // If id does not exist, add it to byte_time_list
+                            byte_time_list.push({ id: eventData.source.id, type: urltype, progress: [] });
+                            existingIdIndex = byte_time_list.length - 1;
+                        }
+                        // Push new progress values
+                        byte_time_list[existingIdIndex].progress.push({ bytecount: eventData.params.byte_count, time: eventData.time });
+                        //type 160
+                        if (eventData.params.hasOwnProperty('source_dependency') && eventData.type === 160) {
+                            console.log(eventData.params.source_dependency.id);
+                        }
+                    } else if (eventData.type === 450 && eventData.hasOwnProperty('params') && urltype == "upload" && eventData.params.hasOwnProperty('current_position')) {
+                        let existingIdIndex = current_position_list.findIndex(item => item.id === eventData.source.id);
+                        if (existingIdIndex === -1) {
+                            // If id does not exist, add it to current_position_list
+                            current_position_list.push({ id: eventData.source.id, type: urltype, progress: [] });
+                            existingIdIndex = current_position_list.length - 1;
+                        }
+                        // Push new progress values
+                        current_position_list[existingIdIndex].progress.push({ current_position: eventData.params.current_position, time: eventData.time });
+                    }
+
+
+                    //latency
+                    if (
+                        eventData.hasOwnProperty('params') &&
+                        typeof (eventData.params) === 'object' &&
+                        eventData.params.hasOwnProperty('line')
+                        && ((urltype == "load") || (urltype == "unload"))
+                        && split_urls.some(url => eventData.params.line.includes(url))
+                    ) {
+                        // console.log(eventData)
+                        if (eventData.type === 176) {
+                            const id = eventData.source;
+                            const existingIdIndex = latency_results.findIndex(item => item.sourceID === eventData.source.id);
+                            if (existingIdIndex !== -1) {
+                                // If id already exists, add to the same dictionary item
+                                if (!latency_results[existingIdIndex].send_time) {
+                                    latency_results[existingIdIndex].send_time = [];
+                                }
+                                latency_results[existingIdIndex].send_time.push(eventData.time);
+                            } else {
+                                latency_results.push({ sourceID: eventData.source.id, send_time: [eventData.time] });
+                            }
+                        }
+                    }
+
+                    if (eventData.type === 181 && latency_results.some(item => item.sourceID === eventData.source.id)) {
+                        const existingIdIndex = latency_results.findIndex(item => item.sourceID === eventData.source.id);
+                        if (existingIdIndex !== -1) {
+                            if (!latency_results[existingIdIndex].recv_time) {
+                                latency_results[existingIdIndex].recv_time = [];
+                            }
+                            // If id already exists, add to the same dictionary item
+                            latency_results[existingIdIndex].recv_time.push(eventData.time);
+                        } else {
+                            latency_results.push({ sourceID: eventData.source.id, recv_time: [eventData.time] });
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error("Error parsing line", index, ":", error);
+            }
+        });
+        // Write byte_time_list to file
+        writeFileSync('byte_time_list.json', JSON.stringify(byte_time_list, null, 2));
+        if (urltype == "upload"){
+            writeFileSync('current_position_list.json', JSON.stringify(current_position_list, null, 2));
         }
-        else{
-        eachEvent = element.slice(0, -1);}
+        writeFileSync('latency.json', JSON.stringify(latency_results,null,2))
+    } catch (error) {
+        console.error("Error reading the file:", error);
+    }
+})();
 
+// You can continue with your fs.readFile logic here
+const processHttpStreamJobIds = () => {
+    http_stream_job_ids = [];
+    try {
+        checkFilePath(filePath);
 
-        try {
+        const data = readFileSync(filePath);
+        const events = data.split('\n').slice(2);
+
+        // Check if the file exists
+        checkFilePath(urlPath);
+
+        const currentPosList = parseJSONFromFile("output/current_position_list.json");
+        checkFilePath("output/current_position_list.json");
+
+        // Populate the list array
+        const list = currentPosList.map(item => item.id);
+        console.log(list);
+
+        events.forEach((element, index) => {
+            if (element.trim() === "") {
+                return;
+            }
+            if (element.slice(-2) === ']}') {
+                eachEvent = element.slice(0, -2);
+            } else {
+                eachEvent = element.slice(0, -1);
+            }
+
             const eventData = JSON.parse(eachEvent);
 
-            // Check if the eventData meets certain conditions
-            if (
-                eventData.hasOwnProperty('params') &&
-                typeof(eventData.params) === 'object' &&
-                eventData.params.hasOwnProperty('url') &&
-                form.some(url => eventData.params.url.includes(url) &&
-                eventData.type === 2
-            )) {
-                if (eventData.source.hasOwnProperty('id')) {
-                    const id =  eventData.source ;
-                    results.push({ sourceID:id, index: index, dict: eventData });
+            if (eventData.hasOwnProperty('params') && eventData.params.hasOwnProperty('source_dependency') && eventData.type === 160) {
+                // console.log(list)
+                if (list.includes(eventData.source.id)) {
+                    console.log("Http stream job ID:", eventData.params.source_dependency.id);
+                    http_stream_job_ids.push([eventData.source.id, eventData.params.source_dependency.id]);
                 }
             }
-            if (
-                results.some(result=>result.sourceID && result.sourceID.id === eventData.source.id )
-            ){
-                            
-            if ((eventData.type === 123 || eventData.type === 122 ) && eventData.hasOwnProperty('params') && (urltype == "download") && eventData.params.hasOwnProperty('byte_count')){
-            // console.log(eventData.source.id)
-                if (!byte_time_dict[eventData.source.id]) {
-                    byte_time_dict[eventData.source.id] = [];
+
+        });
+        writeFileSync('httpStreamJobIds.txt', http_stream_job_ids.join('\n'));
+    } catch (error) {
+        console.error("Error reading the file:", error);
+    }
+};
+
+const processSocketIds = () => {
+    socketIds = []
+    try {
+        const data = readFileSync(filePath);
+        const events = data.split('\n').slice(2);
+
+        // Read the URLs from the file
+        // Read the content of the byte_time_list.json file
+        checkFilePath("output/httpStreamJobIds.txt");
+        httpstreamJobs = readFileSync("output/httpStreamJobIds.txt")
+
+        // const httpstreamList = httpstreamJobs.split('\n');
+        if (httpstreamJobs.length !== 0) {
+            //currently each item in the list has a comma, spli each of them and only taee the second value
+            httpstreamList = httpstreamJobs.split('\n').map(item => parseInt(item.split(',')[1]));
+            httpsourceID = httpstreamJobs.split('\n').map(item => parseInt(item.split(',')[0]));
+            events.forEach((element, index) => {
+                if (element.trim() === "") {
+                    return;
                 }
-                byte_time_dict[eventData.source.id].push({bytecount: eventData.params.byte_count, time: eventData.time})
-            }else if (eventData.type === 450 && eventData.hasOwnProperty('params') && urltype == "upload" && eventData.params.hasOwnProperty('current_position')){
-                if (!byte_time_dict[eventData.source.id]) {
-                    byte_time_dict[eventData.source.id] = [];
+                if (element.slice(-2) === ']}') {
+                    eachEvent = element.slice(0, -2);
+                } else {
+                    eachEvent = element.slice(0, -1);
                 }
-                byte_time_dict[eventData.source.id].push({current_position: eventData.params.current_position, time: eventData.time})
-            }
-            }
-        } catch (error) {
-            console.error("Error parsing line", index, ":", error);
+
+                const eventData = JSON.parse(eachEvent);
+
+                if (eventData.hasOwnProperty('params') && eventData.params.hasOwnProperty('source_dependency') && eventData.type === 108) {
+                    const eventIndex = httpstreamList.indexOf(eventData.source.id);
+                    if (eventIndex !== -1) {
+                        console.log("Socket ID", eventData.params.source_dependency.id);
+                        socketIds.push([httpsourceID[eventIndex], httpstreamList[eventIndex], eventData.params.source_dependency.id]);
+                    }
+                }
+            });
         }
-    });
+        writeFileSync('socketIds.txt', socketIds.join('\n'));
+    } catch (error) {
+        console.error("Error reading the file:", error);
+    }
+};
 
-    console.log(results);
-    // console.log(byte_time_dict);
-    console.log(Object.keys(byte_time_dict).length)
-    console.log(Object.keys(byte_time_dict))
+const processByteCounts = () => {
+    try {
+        const data = readFileSync(filePath);
+        const events = data.split('\n').slice(2);
 
+        // Read the URLs from the file
+        // Read the content of the byte_time_list.json file
+        checkFilePath("output/socketIds.txt");
+        socketdata = readFileSync("output/socketIds.txt")
+        const byte_time_list = [];
 
- });
+        // const httpstreamList = httpstreamJobs.split('\n');
+        if (socketdata.length !== 0) {
+            urlSourceID = socketdata.split('\n').map(item => parseInt(item.split(',')[0]));
+            httpID = socketdata.split('\n').map(item => parseInt(item.split(',')[1]));
+            socketID = socketdata.split('\n').map(item => parseInt(item.split(',')[2]));
 
+            events.forEach((element, index) => {
+                if (element.trim() === "") {
+                    return;
+                }
+                if (element.slice(-2) === ']}') {
+                    eachEvent = element.slice(0, -2);
+                } else {
+                    eachEvent = element.slice(0, -1);
+                }
 
+                const eventData = JSON.parse(eachEvent);
+
+                if (eventData.hasOwnProperty('params') && eventData.params.hasOwnProperty('byte_count')) {
+                    const eventIndex = socketID.indexOf(eventData.source.id);
+                    if (eventIndex !== -1) {
+                        if (!byte_time_list.some(item => item.id === urlSourceID[eventIndex])) {
+                            byte_time_list.push({ id: urlSourceID[eventIndex], type: urltype, progress: [] });
+
+                        }
+                        byte_time_list.find(item => item.id === urlSourceID[eventIndex]).progress.push({ bytecount: eventData.params.byte_count, time: eventData.time });
+                    }
+                }
+            }
+            )
+        }
+
+        writeFileSync('byte_time_list.json', JSON.stringify(byte_time_list, null, 2));
+    } catch (error) {
+        console.error("Error reading the file:", error);
+    }
+};
+
+if (urltype == "upload") {
+    processHttpStreamJobIds();
+    processSocketIds();
+    processByteCounts();
+
+    deleteFile("current_position_list.json")
+    deleteFile("httpStreamJobIds.txt")
+    deleteFile("socketIds.txt")
+}
 
