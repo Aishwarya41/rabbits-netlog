@@ -1,5 +1,6 @@
+//Import the filesystem and path modules
 const fs = require('fs');
-const path = require('path'); // Import the path module
+const path = require('path'); 
 
 // Check if a file path was provided
 const checkFilePath = (filePath) => {
@@ -9,17 +10,22 @@ const checkFilePath = (filePath) => {
     }
 };
 
-// Function to read a file synchronously
+// Function to read a file synchronously - from the output directory
 const readFileSync = (filePath) => {
-    return fs.readFileSync(filePath, { encoding: 'utf-8' });
+    fileread = fs.readFileSync(filePath, { encoding: 'utf-8' });
+    console.log('File ', filePath, ' read success!');
+    return fileread
 };
 
-// Function to write a file synchronously
+// Function to write a file synchronously - in the output directory
 const writeFileSync = (fileName, data) => {
     const outputPath = path.join(__dirname, 'output', fileName); // Construct the output file path
     fs.writeFileSync(outputPath, data);
+    console.log('File ', fileName, ' write success!');
+    
 };
 
+//Function to delete a file from the system - from the output directory
 const deleteFile = (fileName) => {
     const filePath = path.join(__dirname, 'output', fileName); // Construct the full path to the file
     return fs.unlink(filePath, (err) => {
@@ -31,22 +37,42 @@ const deleteFile = (fileName) => {
     });
 }
 
+//Function that returns the url's type and form 
 const getUrlTypeAndForm = (urlJSON) => {
-    let urltype, form;
+    let urltype="", urltype2="", form=[], form2=[];
     if (urlJSON.load.length > 0) {
-        urltype = "load";
-        form = urlJSON.load;
+        urltype2 = "load";
+        form2 = urlJSON.load;
     } else if (urlJSON.unload.length > 0) {
-        urltype = "unload";
-        form = urlJSON.unload;
-    } else if (urlJSON.download.length > 0) {
+        urltype2 = "unload";
+        form2 = urlJSON.unload;
+    } 
+    if (urlJSON.download.length > 0) {
         urltype = "download";
         form = urlJSON.download;
     } else if (urlJSON.upload.length > 0) {
         urltype = "upload";
         form = urlJSON.upload;
     }
-    return { urltype, form };
+
+    //You can either have only one url type or two (download/upload and load/unload)
+    if (urltype){
+        if (urltype2){
+            return {count: 2, urltype: urltype, form:form, urltype2: urltype2, form2:form2}
+        }
+        else {
+            return {count: 1, urltype: urltype, form: form}
+        }
+    }
+    else{
+        return { count: 1, urltype: urltype2, form: form2 };
+    }
+};
+
+// Function to parse JSON from a file
+const parseJSONFromFile = (filePath) => {
+    const fileContent = fs.readFileSync(filePath);
+    return JSON.parse(fileContent);
 };
 
 // Read the command line arguments
@@ -63,16 +89,18 @@ if (process.argv.length < 4) {
 checkFilePath(filePath);
 checkFilePath(urlPath);
 
-// Function to parse JSON from a file
-const parseJSONFromFile = (filePath) => {
-    const fileContent = fs.readFileSync(filePath);
-    return JSON.parse(fileContent);
-};
-
 const urlJSON = parseJSONFromFile(urlPath);
 const urlTypeAndForm = getUrlTypeAndForm(urlJSON);
-const { urltype, form } = urlTypeAndForm;
-
+let urltype, form, urltype2, form2
+if (urlTypeAndForm.count === 1){
+    urltype = urlTypeAndForm.urltype;
+    form = urlTypeAndForm.form
+}else{
+    urltype = urlTypeAndForm.urltype;
+    form = urlTypeAndForm.form;
+    urltype2 = urlTypeAndForm.urltype2;
+    form2 = urlTypeAndForm.form2;
+}
 
 // Read the content of the Netlog file
 (() => {
@@ -80,16 +108,12 @@ const { urltype, form } = urlTypeAndForm;
         const data = readFileSync(filePath);
         const events = data.split('\n').slice(2);
 
-        // Read the URLs from the file
-
-        console.log(urltype);
-
         const byte_time_list = [];
         const current_position_list = [];
         const latency_results = [];
         const results = [];
 
-        if (urltype === "load" || urltype === "unload") {
+        if (urltype === "load" || urltype === "unload" || urltype2 === "load" || urltype2 === "unload") {
             var split_urls = [];
             for (var i = 0; i < form.length; i++) {
                 // console.log(typeof urls[i], urls[i]);
@@ -140,9 +164,9 @@ const { urltype, form } = urlTypeAndForm;
                         byte_time_list[existingIdIndex].progress.push({ bytecount: eventData.params.byte_count, time: eventData.time });
                         //type 160
                         if (eventData.params.hasOwnProperty('source_dependency') && eventData.type === 160) {
-                            console.log(eventData.params.source_dependency.id);
+                            // console.log(eventData.params.source_dependency.id);
                         }
-                    } else if (eventData.type === 450 && eventData.hasOwnProperty('params') && urltype == "upload" && eventData.params.hasOwnProperty('current_position')) {
+                    } else if (eventData.type === 450 && eventData.hasOwnProperty('params') && (urltype == "upload"  && eventData.params.hasOwnProperty('current_position'))) {
                         let existingIdIndex = current_position_list.findIndex(item => item.id === eventData.source.id);
                         if (existingIdIndex === -1) {
                             // If id does not exist, add it to current_position_list
@@ -153,13 +177,12 @@ const { urltype, form } = urlTypeAndForm;
                         current_position_list[existingIdIndex].progress.push({ current_position: eventData.params.current_position, time: eventData.time });
                     }
 
-
                     //latency
                     if (
                         eventData.hasOwnProperty('params') &&
                         typeof (eventData.params) === 'object' &&
                         eventData.params.hasOwnProperty('line')
-                        && ((urltype == "load") || (urltype == "unload"))
+                        && ((urltype == "load") || (urltype == "unload") || (urltype2 == "load") || (urltype2 == "unload"))
                         && split_urls.some(url => eventData.params.line.includes(url))
                     ) {
                         // console.log(eventData)
@@ -201,6 +224,7 @@ const { urltype, form } = urlTypeAndForm;
             writeFileSync('current_position_list.json', JSON.stringify(current_position_list, null, 2));
         }
         writeFileSync('latency.json', JSON.stringify(latency_results,null,2))
+        console.log("Completion Successful")
     } catch (error) {
         console.error("Error reading the file:", error);
     }
@@ -223,7 +247,7 @@ const processHttpStreamJobIds = () => {
 
         // Populate the list array
         const list = currentPosList.map(item => item.id);
-        console.log(list);
+        // console.log(list);
 
         events.forEach((element, index) => {
             if (element.trim() === "") {
@@ -238,9 +262,8 @@ const processHttpStreamJobIds = () => {
             const eventData = JSON.parse(eachEvent);
 
             if (eventData.hasOwnProperty('params') && eventData.params.hasOwnProperty('source_dependency') && eventData.type === 160) {
-                // console.log(list)
                 if (list.includes(eventData.source.id)) {
-                    console.log("Http stream job ID:", eventData.params.source_dependency.id);
+                    // console.log("Http stream job ID:", eventData.params.source_dependency.id);
                     http_stream_job_ids.push([eventData.source.id, eventData.params.source_dependency.id]);
                 }
             }
@@ -283,7 +306,7 @@ const processSocketIds = () => {
                 if (eventData.hasOwnProperty('params') && eventData.params.hasOwnProperty('source_dependency') && eventData.type === 108) {
                     const eventIndex = httpstreamList.indexOf(eventData.source.id);
                     if (eventIndex !== -1) {
-                        console.log("Socket ID", eventData.params.source_dependency.id);
+                        // console.log("Socket ID", eventData.params.source_dependency.id);
                         socketIds.push([httpsourceID[eventIndex], httpstreamList[eventIndex], eventData.params.source_dependency.id]);
                     }
                 }
@@ -344,11 +367,13 @@ const processByteCounts = () => {
     }
 };
 
+//These only need to be called if the urltype was upload as only upload requires multiple passes. 
 if (urltype == "upload") {
     processHttpStreamJobIds();
     processSocketIds();
     processByteCounts();
 
+    //These are intermediary files that can be deleted at the end
     deleteFile("current_position_list.json")
     deleteFile("httpStreamJobIds.txt")
     deleteFile("socketIds.txt")
