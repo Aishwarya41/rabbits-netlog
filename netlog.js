@@ -288,7 +288,7 @@ const processSocketIds = () => {
 
         // const httpstreamList = httpstreamJobs.split('\n');
         if (httpstreamJobs.length !== 0) {
-            //currently each item in the list has a comma, spli each of them and only taee the second value
+            //currently each item in the list has a comma, split each of them and only taee the second value
             httpstreamList = httpstreamJobs.split('\n').map(item => parseInt(item.split(',')[1]));
             httpsourceID = httpstreamJobs.split('\n').map(item => parseInt(item.split(',')[0]));
             events.forEach((element, index) => {

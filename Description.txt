@@ -1,0 +1,22 @@
+The primary objective of the script is to facilitate the extraction if important data from the extensive netlog files
+generated during the speed test procedures. These files typically have a lot of information requiring us to have a
+script that can isolate the crucial and necessary events such as the 
+URL requests representing the http flows and latency measurements. When we run our script, 
+we get the output in the form of a JSON [{"id", "type", "progress:[{"bytecount", "time"}]}].
+Our output has been formatted such that the each object in the JSON are separated by 'id', which are the 
+http flow source ids. The type determines whether it was a download or an upload flow and the progress 
+keeps track of the bytecount that was read at the given time. 
+
+We chose to record bytecount and time so that we can calculate throughput by adding all the bytecounts for
+the particular source id and dividing it by the start and the end time. 
+
+The latency measurements are also tracked in a JSON object where each object has a distinct source id with instructions
+send time and receive time. We are finding the HTTP_TRANSACTION_SEND_REQUEST_HEADERS, and the HTTP_TRANSACTION_READ_HEADERS  
+
+
+what deis the netlog contailn
+what is byte count
+ take the URLmatch the ids
+
+ ids corresponding
+ 
